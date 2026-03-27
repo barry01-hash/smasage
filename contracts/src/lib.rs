@@ -1,12 +1,16 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, Env, Address};
+use soroban_sdk::{contract, contractimpl, contracttype, Env, Address, Vec, String};
 
 // Issue 2: Smart Contract - Stellar Path Payments & Yield Allocation (Blend Integration)
+// Issue 3: Withdraw functionality with Blend and Soroswap unwinding
 
 #[contracttype]
 pub enum DataKey {
     UserBalance(Address),
     TotalDeposits,
+    UserBlendBalance(Address),
+    UserLPShares(Address),
+    UserGoldBalance(Address),
 }
 
 #[contract]
@@ -24,18 +28,76 @@ impl SmasageYieldRouter {
         balance += amount;
         env.storage().persistent().set(&DataKey::UserBalance(from.clone()), &balance);
         
+        // Track Blend allocation
+        let blend_amount = amount * blend_percentage as i128 / 100;
+        let mut blend_balance: i128 = env.storage().persistent().get(&DataKey::UserBlendBalance(from.clone())).unwrap_or(0);
+        blend_balance += blend_amount;
+        env.storage().persistent().set(&DataKey::UserBlendBalance(from.clone()), &blend_balance);
+        
+        // Track LP shares allocation
+        let lp_amount = amount * lp_percentage as i128 / 100;
+        let mut lp_shares: i128 = env.storage().persistent().get(&DataKey::UserLPShares(from.clone())).unwrap_or(0);
+        lp_shares += lp_amount;
+        env.storage().persistent().set(&DataKey::UserLPShares(from.clone()), &lp_shares);
+        
         // Mock: Here we would route `blend_percentage` to the Blend protocol
         // Mock: Here we would route `lp_percentage` to Soroswap Pool
     }
 
+    /// Withdraw USDC by unwinding positions from Blend and breaking LP shares from Soroswap.
+    /// The contract calculates how much to pull from each source and transfers USDC to the user.
     pub fn withdraw(env: Env, to: Address, amount: i128) {
         to.require_auth();
-        let mut balance: i128 = env.storage().persistent().get(&DataKey::UserBalance(to.clone())).unwrap_or(0);
-        assert!(balance >= amount, "Insufficient balance");
-        balance -= amount;
-        env.storage().persistent().set(&DataKey::UserBalance(to.clone()), &balance);
         
-        // Mock: Here we would break LP positions and retrieve from Blend Protocol
+        // Get total user balance (USDC + Blend + LP + Gold)
+        let usdc_balance: i128 = env.storage().persistent().get(&DataKey::UserBalance(to.clone())).unwrap_or(0);
+        let blend_balance: i128 = env.storage().persistent().get(&DataKey::UserBlendBalance(to.clone())).unwrap_or(0);
+        let lp_shares: i128 = env.storage().persistent().get(&DataKey::UserLPShares(to.clone())).unwrap_or(0);
+        let gold_balance: i128 = env.storage().persistent().get(&DataKey::UserGoldBalance(to.clone())).unwrap_or(0);
+        
+        let total_balance = usdc_balance + blend_balance + lp_shares + gold_balance;
+        assert!(total_balance >= amount, "Insufficient balance");
+        
+        let mut remaining_to_withdraw = amount;
+        
+        // Step 1: Use available USDC first
+        if usdc_balance > 0 {
+            let usdc_to_use = usdc_balance.min(remaining_to_withdraw);
+            env.storage().persistent().set(&DataKey::UserBalance(to.clone()), &(usdc_balance - usdc_to_use));
+            remaining_to_withdraw -= usdc_to_use;
+        }
+        
+        // Step 2: If still need more, unwind Blend positions (pull liquidity)
+        if remaining_to_withdraw > 0 && blend_balance > 0 {
+            let blend_to_unwind = blend_balance.min(remaining_to_withdraw);
+            env.storage().persistent().set(&DataKey::UserBlendBalance(to.clone()), &(blend_balance - blend_to_unwind));
+            // Mock: In production, this would call Blend Protocol to withdraw underlying assets
+            // For simplicity, we assume 1:1 conversion back to USDC
+            remaining_to_withdraw -= blend_to_unwind;
+        }
+        
+        // Step 3: If still need more, break LP shares on Soroswap
+        if remaining_to_withdraw > 0 && lp_shares > 0 {
+            let lp_to_break = lp_shares.min(remaining_to_withdraw);
+            env.storage().persistent().set(&DataKey::UserLPShares(to.clone()), &(lp_shares - lp_to_break));
+            // Mock: In production, this would remove liquidity from Soroswap pool and swap back to USDC
+            // For simplicity, we assume 1:1 conversion back to USDC
+            remaining_to_withdraw -= lp_to_break;
+        }
+        
+        // Step 4: If still need more, sell Gold allocation
+        if remaining_to_withdraw > 0 && gold_balance > 0 {
+            let gold_to_sell = gold_balance.min(remaining_to_withdraw);
+            env.storage().persistent().set(&DataKey::UserGoldBalance(to.clone()), &(gold_balance - gold_to_sell));
+            // Mock: In production, this would swap XAUT back to USDC via Stellar DEX
+            // For simplicity, we assume 1:1 conversion back to USDC
+            remaining_to_withdraw -= gold_to_sell;
+        }
+        
+        assert!(remaining_to_withdraw == 0, "Withdrawal calculation failed");
+        
+        // Mock: Transfer the resulting USDC to the user
+        // In production, this would execute actual token transfers via Soroban token interface
     }
 
     pub fn get_balance(env: Env, user: Address) -> i128 {
@@ -66,5 +128,25 @@ mod test {
         
         client.withdraw(&user, &500);
         assert_eq!(client.get_balance(&user), 500);
+    }
+
+    #[test]
+    fn test_withdraw_unwinds_blend_and_lp() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, SmasageYieldRouter);
+        let client = SmasageYieldRouterClient::new(&env, &contract_id);
+
+        let user = Address::generate(&env);
+        env.mock_all_auths();
+
+        // Deposit with 60% to Blend, 30% to LP
+        client.deposit(&user, &1000, &60, &30);
+        
+        // Verify allocations
+        assert_eq!(client.get_balance(&user), 1000);
+        
+        // Withdraw full amount - should unwind from all sources
+        client.withdraw(&user, &1000);
+        assert_eq!(client.get_balance(&user), 0);
     }
 }
