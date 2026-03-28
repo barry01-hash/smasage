@@ -1,15 +1,18 @@
 "use client"
 import React, { useState, useEffect, useRef } from 'react';
-import { Bot, Send, Wallet, TrendingUp, Target, Activity, CheckCircle2 } from 'lucide-react';
+import { Bot, Send, Wallet, TrendingUp, Target, Activity, CheckCircle2, AlertCircle } from 'lucide-react';
 import { evaluateGoalStatus, formatCurrency, getStatusColor, type GoalData } from '../utils/goalProjection';
 import PortfolioChart from './PortfolioChart';
 import { parseAllocationsFromMessage, getDefaultAllocations } from '../utils/allocationParser';
 import type { AssetAllocation } from '../utils/chartUtils';
+import { useNotifications } from '../hooks/useNotifications';
 
 interface Message {
   id: number;
   sender: 'agent' | 'user';
   text: string;
+  proactive?: boolean;
+  timestamp?: string;
 }
 
 export default function Home() {
@@ -22,7 +25,48 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const [goalStatus, setGoalStatus] = useState<'On Track' | 'Ahead' | 'Falling Behind'>('On Track');
   const [allocations, setAllocations] = useState<AssetAllocation[]>(getDefaultAllocations());
+  const [wsConnected, setWsConnected] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Goal data
+  const goalData: GoalData = {
+    currentBalance: 12450,
+    targetAmount: 18000,
+    targetDate: '2026-08-01',
+    monthlyContribution: 500,
+    expectedAPY: 8.5,
+  };
+
+  // WebSocket notifications
+  const { registerGoal } = useNotifications({
+    userId: 'user-demo-001',
+    onNotification: (notification) => {
+      if (notification.type === 'connected') {
+        console.log('[App] Connected to notification server');
+        setWsConnected(true);
+      } else if (notification.type === 'agent-message') {
+        const payload = notification.payload as any;
+        const agentMsg: Message = {
+          id: Date.now(),
+          sender: 'agent',
+          text: payload.text,
+          proactive: payload.proactive,
+          timestamp: payload.timestamp,
+        };
+        setMessages(prev => [...prev, agentMsg]);
+        
+        // Parse allocations if present
+        const parsedAllocations = parseAllocationsFromMessage(payload.text);
+        if (parsedAllocations) {
+          setAllocations(parsedAllocations);
+        }
+      }
+    },
+    onError: (error) => {
+      console.error('[App] WebSocket error:', error);
+    },
+    enabled: true,
+  });
 
   // Auto scroll
   useEffect(() => {
@@ -31,18 +75,23 @@ export default function Home() {
 
   // Calculate goal status dynamically
   useEffect(() => {
-    const goalData: GoalData = {
-      currentBalance: 12450,
-      targetAmount: 18000,
-      targetDate: '2026-08-01',
-      monthlyContribution: 500,
-      expectedAPY: 8.5,
-    };
-    
     const result = evaluateGoalStatus(goalData);
     setGoalStatus(result.status);
     setProgress(result.progressPercentage);
   }, []);
+
+  // Register goal with notification server on mount
+  useEffect(() => {
+    if (wsConnected) {
+      registerGoal({
+        currentBalance: goalData.currentBalance,
+        targetAmount: goalData.targetAmount,
+        targetDate: goalData.targetDate,
+        expectedAPY: goalData.expectedAPY,
+        monthlyContribution: goalData.monthlyContribution,
+      });
+    }
+  }, [wsConnected]);
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -157,6 +206,11 @@ export default function Home() {
           <div className="chat-messages">
             {messages.map((msg) => (
               <div key={msg.id} className={`message ${msg.sender}`}>
+                {msg.proactive && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: 'var(--accent-primary)', marginBottom: '4px', fontWeight: 600, textTransform: 'uppercase' }}>
+                    <AlertCircle size={12} /> Proactive Nudge
+                  </div>
+                )}
                 <div className="message-bubble">{msg.text}</div>
               </div>
             ))}
