@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+"use client";
+import { createContext, useContext, useState, ReactNode } from 'react';
 
 interface WalletContextType {
   publicKey: string | null;

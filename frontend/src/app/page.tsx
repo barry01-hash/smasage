@@ -138,6 +138,50 @@ export default function Home() {
     }, 1800);
   };
 
+  const modalStyles = `
+  .modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+  .modal-content {
+    background: #18181b;
+    color: #fff;
+    padding: 2rem 2.5rem;
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+    text-align: center;
+    min-width: 320px;
+  }
+  .install-link {
+    display: inline-block;
+    margin: 1rem 0;
+    color: #8b5cf6;
+    font-weight: 600;
+    text-decoration: underline;
+  }
+  .close-modal {
+    background: #27272a;
+    color: #fff;
+    border: none;
+    padding: 0.5rem 1.5rem;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-top: 1rem;
+  }
+  `;
+
+  if (typeof window !== 'undefined' && !document.getElementById('modal-styles')) {
+    const style = document.createElement('style');
+    style.id = 'modal-styles';
+    style.innerHTML = modalStyles;
+    document.head.appendChild(style);
+  }
+
   return (
     <>
       <DashboardHeader>
@@ -271,48 +315,5 @@ export default function Home() {
       </div>
     </main>
     </>
-// Add minimal modal styles
-// You may want to move this to your CSS file
-const modalStyles = `
-.modal-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-.modal-content {
-  background: #18181b;
-  color: #fff;
-  padding: 2rem 2.5rem;
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.25);
-  text-align: center;
-  min-width: 320px;
-}
-.install-link {
-  display: inline-block;
-  margin: 1rem 0;
-  color: #8b5cf6;
-  font-weight: 600;
-  text-decoration: underline;
-}
-.close-modal {
-  background: #27272a;
-  color: #fff;
-  border: none;
-  padding: 0.5rem 1.5rem;
-  border-radius: 8px;
-  cursor: pointer;
-  margin-top: 1rem;
-}
-`;
-if (typeof window !== 'undefined' && !document.getElementById('modal-styles')) {
-  const style = document.createElement('style');
-  style.id = 'modal-styles';
-  style.innerHTML = modalStyles;
-  document.head.appendChild(style);
-}
+  );
 }
