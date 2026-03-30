@@ -1,12 +1,18 @@
 "use client"
 import React, { useState, useEffect, useRef } from 'react';
-import { Bot, Send, Wallet, TrendingUp, Target, Activity, CheckCircle2 } from 'lucide-react';
+import { Bot, Send, Wallet, TrendingUp, Target, Activity, CheckCircle2, AlertCircle } from 'lucide-react';
 import { evaluateGoalStatus, formatCurrency, getStatusColor, type GoalData } from '../utils/goalProjection';
+import PortfolioChart from './PortfolioChart';
+import { parseAllocationsFromMessage, getDefaultAllocations } from '../utils/allocationParser';
+import type { AssetAllocation } from '../utils/chartUtils';
+import { useNotifications } from '../hooks/useNotifications';
 
 interface Message {
   id: number;
   sender: 'agent' | 'user';
   text: string;
+  proactive?: boolean;
+  timestamp?: string;
 }
 
 export default function Home() {
@@ -18,7 +24,49 @@ export default function Home() {
 
   const [progress, setProgress] = useState(0);
   const [goalStatus, setGoalStatus] = useState<'On Track' | 'Ahead' | 'Falling Behind'>('On Track');
+  const [allocations, setAllocations] = useState<AssetAllocation[]>(getDefaultAllocations());
+  const [wsConnected, setWsConnected] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Goal data
+  const goalData: GoalData = {
+    currentBalance: 12450,
+    targetAmount: 18000,
+    targetDate: '2026-08-01',
+    monthlyContribution: 500,
+    expectedAPY: 8.5,
+  };
+
+  // WebSocket notifications
+  const { registerGoal } = useNotifications({
+    userId: 'user-demo-001',
+    onNotification: (notification) => {
+      if (notification.type === 'connected') {
+        console.log('[App] Connected to notification server');
+        setWsConnected(true);
+      } else if (notification.type === 'agent-message') {
+        const payload = notification.payload as any;
+        const agentMsg: Message = {
+          id: Date.now(),
+          sender: 'agent',
+          text: payload.text,
+          proactive: payload.proactive,
+          timestamp: payload.timestamp,
+        };
+        setMessages(prev => [...prev, agentMsg]);
+        
+        // Parse allocations if present
+        const parsedAllocations = parseAllocationsFromMessage(payload.text);
+        if (parsedAllocations) {
+          setAllocations(parsedAllocations);
+        }
+      }
+    },
+    onError: (error) => {
+      console.error('[App] WebSocket error:', error);
+    },
+    enabled: true,
+  });
 
   // Auto scroll
   useEffect(() => {
@@ -27,18 +75,23 @@ export default function Home() {
 
   // Calculate goal status dynamically
   useEffect(() => {
-    const goalData: GoalData = {
-      currentBalance: 12450,
-      targetAmount: 18000,
-      targetDate: '2026-08-01',
-      monthlyContribution: 500,
-      expectedAPY: 8.5,
-    };
-    
     const result = evaluateGoalStatus(goalData);
     setGoalStatus(result.status);
     setProgress(result.progressPercentage);
   }, []);
+
+  // Register goal with notification server on mount
+  useEffect(() => {
+    if (wsConnected) {
+      registerGoal({
+        currentBalance: goalData.currentBalance,
+        targetAmount: goalData.targetAmount,
+        targetDate: goalData.targetDate,
+        expectedAPY: goalData.expectedAPY,
+        monthlyContribution: goalData.monthlyContribution,
+      });
+    }
+  }, [wsConnected]);
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,6 +111,12 @@ export default function Home() {
         text: "That's a great goal. I'll allocate 60% to Stellar Blend for safe yield, and the rest to Soroswap XLM/USDC LP to accelerate returns. Does that sound good?"
       };
       setMessages(prev => [...prev, agentMsg]);
+      
+      // Parse allocations from agent message
+      const parsedAllocations = parseAllocationsFromMessage(agentMsg.text);
+      if (parsedAllocations) {
+        setAllocations(parsedAllocations);
+      }
     }, 1800);
   };
 
@@ -115,33 +174,17 @@ export default function Home() {
         </div>
 
         <div className="allocation-list">
-          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.1rem', marginBottom: '0.5rem', marginTop: '1rem' }}>
+          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.1rem', marginBottom: '1.25rem', marginTop: '1rem' }}>
             <Activity size={18} /> Active Strategy Routes
           </h3>
-
-          <div className="allocation-item">
-            <div className="allocation-header">
-              <span>Blend Protocol Yield (USDC)</span>
-              <span>60%</span>
-            </div>
-            <div className="allocation-bar"><div className="allocation-fill fill-blend" style={{ width: '60%' }}></div></div>
-          </div>
-
-          <div className="allocation-item">
-            <div className="allocation-header">
-              <span>Soroswap LP (XLM/USDC)</span>
-              <span>30%</span>
-            </div>
-            <div className="allocation-bar"><div className="allocation-fill fill-soro" style={{ width: '30%' }}></div></div>
-          </div>
-
-          <div className="allocation-item">
-            <div className="allocation-header">
-              <span>Stellar Anchored Gold (XAUT)</span>
-              <span>10%</span>
-            </div>
-            <div className="allocation-bar"><div className="allocation-fill fill-gold" style={{ width: '10%' }}></div></div>
-          </div>
+          
+          <PortfolioChart 
+            allocations={allocations}
+            width={320}
+            height={280}
+            showLegend={true}
+            animated={true}
+          />
         </div>
       </div>
 
@@ -163,6 +206,11 @@ export default function Home() {
           <div className="chat-messages">
             {messages.map((msg) => (
               <div key={msg.id} className={`message ${msg.sender}`}>
+                {msg.proactive && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: 'var(--accent-primary)', marginBottom: '4px', fontWeight: 600, textTransform: 'uppercase' }}>
+                    <AlertCircle size={12} /> Proactive Nudge
+                  </div>
+                )}
                 <div className="message-bubble">{msg.text}</div>
               </div>
             ))}
