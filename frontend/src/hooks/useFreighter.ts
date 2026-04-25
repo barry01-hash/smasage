@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect } from 'react';
-import { useWallet } from '../app/components/WalletContext';
+import { useState, useCallback, useEffect } from "react";
+import { useWallet } from "../app/components/WalletContext";
 
 /**
  * Custom hook to manage Freighter wallet interactions.
@@ -30,7 +30,7 @@ export function useFreighter() {
       setPublicKey(key);
       return key;
     } catch (error) {
-      console.error('[useFreighter] Connection failed:', error);
+      console.error("[useFreighter] Connection failed:", error);
       return null;
     }
   }, [setPublicKey]);
