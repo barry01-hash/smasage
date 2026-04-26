@@ -48,6 +48,7 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
 }
 
 /* Dashboard Header */
@@ -236,6 +237,129 @@ body {
   .app-container {
     grid-template-columns: 1fr;
     height: auto;
+    max-width: 100%;
+    padding: 1.5rem;
+    gap: 1.5rem;
+  }
+
+  .glass-panel {
+    width: 100%;
+    min-width: 0;
+    padding: 1.5rem;
+  }
+
+  .stats-grid {
+    gap: 1rem;
+  }
+
+  .goal-section {
+    padding: 1.5rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .header-content {
+    padding: 0.85rem 1rem;
+    gap: 0.75rem;
+  }
+
+  .brand {
+    gap: 0.65rem;
+  }
+
+  .brand-name {
+    font-size: 1.25rem;
+  }
+
+  .status-pill {
+    padding: 0.35rem 0.6rem;
+  }
+
+  .app-container {
+    padding: 1rem;
+    gap: 1rem;
+    width: 100%;
+  }
+
+  .glass-panel {
+    padding: 1rem;
+    border-radius: 18px;
+  }
+
+  h1 {
+    font-size: 1.85rem;
+  }
+
+  h2 {
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 0.85rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .stat-card,
+  .goal-section {
+    padding: 1rem;
+  }
+
+  .stat-value {
+    font-size: 1.7rem;
+  }
+
+  .chat-header {
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+  }
+
+  .chat-messages {
+    gap: 1rem;
+    padding-right: 0.2rem;
+  }
+
+  .message {
+    max-width: 92%;
+  }
+
+  .message-bubble {
+    padding: 0.85rem 1rem;
+    font-size: 0.9rem;
+    line-height: 1.45;
+  }
+
+  .chat-input-container {
+    margin-top: 1rem;
+  }
+
+  .chat-input-container input {
+    font-size: 0.95rem;
+    padding: 0.9rem 3.5rem 0.9rem 1rem;
+  }
+
+  .btn,
+  .send-button,
+  .modal-close-icon,
+  .install-link,
+  .error-retry-btn {
+    min-height: 44px;
+  }
+
+  .btn {
+    padding: 0.78rem 1.05rem;
+  }
+
+  .connect-wallet-btn {
+    min-width: 132px;
+  }
+
+  .modal-content {
+    min-width: 0;
+    width: min(92vw, 420px);
+    padding: 2.25rem 1.25rem;
   }
 }
 
