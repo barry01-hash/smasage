@@ -7,23 +7,25 @@ interface DashboardHeaderProps {
 }
 
 export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ children, wsConnected = false }) => (
-  <header
-    className="dashboard-header"
-    style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: '1rem 2rem',
-      borderBottom: '1px solid #eee',
-    }}
-  >
-    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-      <span style={{ fontWeight: 700, fontSize: '1.5rem' }}>Smasage</span>
-      <WsStatusIndicator connected={wsConnected} />
-      <span style={{ fontSize: '0.75rem', color: wsConnected ? '#10b981' : '#f59e0b' }}>
-        {wsConnected ? 'Live' : 'Connecting…'}
-      </span>
+  <header className="dashboard-header" aria-label="Smasage application header">
+    <div className="header-content">
+      <div className="logo-section">
+        <div className="brand">
+          <span className="brand-name" aria-label="Smasage">Smasage</span>
+          <div
+            className="status-pill"
+            role="status"
+            aria-label={wsConnected ? 'Connection status: Live' : 'Connection status: Connecting'}
+          >
+            <WsStatusIndicator connected={wsConnected} />
+            <span className={`status-text ${wsConnected ? 'live' : 'connecting'}`} aria-hidden="true">
+              {wsConnected ? 'Live' : 'Connecting'}
+            </span>
+          </div>
+        </div>
+      </div>
+      <div className="header-actions">{children}</div>
     </div>
-    <div>{children}</div>
   </header>
 );
+
