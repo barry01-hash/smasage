@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
+import { Button } from './Button';
 
 interface WalletModalProps {
   isOpen: boolean;
@@ -114,12 +115,13 @@ export const WalletModal: React.FC<WalletModalProps> = ({ isOpen, onClose }) => 
             Install Freighter
           </a>
 
-          <button
+          <Button
             onClick={onClose}
             className="close-modal"
+            variant="secondary"
           >
             Close
-          </button>
+          </Button>
         </div>
       </div>
     </div>

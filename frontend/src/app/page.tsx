@@ -28,19 +28,11 @@ export default function Home() {
       }
     };
 "use client";
-import React, { useState, useEffect, useRef, useMemo } from "react";
-import {
-  Bot,
-  Send,
-  Target,
-  Activity,
-  CheckCircle2,
-  AlertCircle,
-} from "lucide-react";
+import React, { useState, useEffect, useMemo } from "react";
+import { Activity } from "lucide-react";
 import { PortfolioStats } from "./components/PortfolioStats";
 import {
   evaluateGoalStatus,
-  getStatusColor,
   type GoalData,
 } from "../utils/goalProjection";
 import PortfolioChart from "./PortfolioChart";
@@ -50,6 +42,10 @@ import {
 } from "../utils/allocationParser";
 import type { AssetAllocation } from "../utils/chartUtils";
 import { useNotifications } from "../hooks/useNotifications";
+import {
+  isAgentMessageNotification,
+  isConnectedNotification,
+} from "../types/websocket";
 import { DashboardHeader } from "./components/DashboardHeader";
 import { ConnectWalletButton } from "./components/ConnectWalletButton";
 import { useFreighter } from "../hooks/useFreighter";
@@ -60,32 +56,25 @@ import {
   PortfolioChartSkeleton,
 } from "./components/SkeletonLoader";
 import { WalletModal } from "./components/WalletModal";
-
-interface Message {
-  id: number;
-  sender: "agent" | "user";
-  text: string;
-  proactive?: boolean;
-  timestamp?: string;
-}
+import { ChatInterface, type ChatMessage } from "./components/ChatInterface";
+import { GoalTracker } from "./components/GoalTracker";
 
 export default function Home() {
-  const { 
-    publicKey, 
-    connect, 
-    showInstallModal, 
+  const {
+    publicKey,
+    connect,
+    showInstallModal,
     setShowInstallModal,
-    isConnecting 
+    isConnecting
   } = useFreighter();
 
-  const [messages, setMessages] = useState<Message[]>([
+  const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 1,
       sender: "agent",
       text: "Welcome to Smasage! 👋 I'm OpenClaw, your personal AI savings assistant natively built on Stellar. What financial goal can we crush today?",
     },
   ]);
-  const [inputState, setInputState] = useState("");
   const [isTyping, setIsTyping] = useState(false);
 
   const [allocations, setAllocations] = useState<AssetAllocation[]>(
@@ -94,7 +83,6 @@ export default function Home() {
 
   const [wsConnected, setWsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Goal data (Memoized to avoid unnecessary effect triggers)
   const goalData = useMemo<GoalData>(() => ({
@@ -133,23 +121,24 @@ export default function Home() {
   const { registerGoal } = useNotifications({
     userId: "user-demo-001",
     onNotification: (notification) => {
-      if (notification.type === "connected") {
+      if (isConnectedNotification(notification)) {
         console.log("[App] Connected to notification server");
         setWsConnected(true);
         setIsLoading(false);
-      } else if (notification.type === "agent-message") {
-        const payload = notification.payload as { text: string; proactive?: boolean; timestamp?: string };
-        const agentMsg: Message = {
+      } else if (isAgentMessageNotification(notification)) {
+        // payload is fully typed as AgentMessagePayload — no cast needed
+        const { text, proactive, timestamp } = notification.payload;
+        const agentMsg: ChatMessage = {
           id: Date.now(),
           sender: "agent",
-          text: payload.text,
-          proactive: payload.proactive,
-          timestamp: payload.timestamp,
+          text,
+          proactive,
+          timestamp,
         };
-        setMessages((prev) => [...prev, agentMsg]);
+        setMessages((prev: ChatMessage[]) => [...prev, agentMsg]);
 
         // Parse allocations if present
-        const parsedAllocations = parseAllocationsFromMessage(payload.text);
+        const parsedAllocations = parseAllocationsFromMessage(text);
         if (parsedAllocations) {
           setAllocations(parsedAllocations);
         }
@@ -167,11 +156,6 @@ export default function Home() {
     return () => clearTimeout(t);
   }, []);
 
-  // Auto scroll
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isTyping]);
-
   // Register goal with notification server on mount
   useEffect(() => {
     if (wsConnected) {
@@ -185,28 +169,27 @@ export default function Home() {
     }
   }, [wsConnected, registerGoal, goalData]);
 
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputState.trim()) return;
+  const handleSendMessage = (message: string) => {
+    const trimmed = message.trim();
+    if (!trimmed) return;
 
-    const userMsg: Message = {
+    const userMsg: ChatMessage = {
       id: Date.now(),
       sender: "user",
-      text: inputState,
+      text: trimmed,
     };
-    setMessages((prev) => [...prev, userMsg]);
-    setInputState("");
+    setMessages((prev: ChatMessage[]) => [...prev, userMsg]);
     setIsTyping(true);
 
     // Mock agent response delay
     setTimeout(() => {
       setIsTyping(false);
-      const agentMsg: Message = {
+      const agentMsg: ChatMessage = {
         id: Date.now() + 1,
         sender: "agent",
         text: "That's a great goal. I'll allocate 60% to Stellar Blend for safe yield, and the rest to Soroswap XLM/USDC LP to accelerate returns. Does that sound good?",
       };
-      setMessages((prev) => [...prev, agentMsg]);
+      setMessages((prev: ChatMessage[]) => [...prev, agentMsg]);
 
       // Parse allocations from agent message
       const parsedAllocations = parseAllocationsFromMessage(agentMsg.text);
@@ -254,56 +237,14 @@ export default function Home() {
             {isLoading ? (
               <GoalTrackerSkeleton />
             ) : (
-              <div className="goal-section skeleton-fade-in">
-                <div className="goal-header">
-                  <div>
-                    <h3 style={{ fontSize: "1.25rem", marginBottom: "4px" }}>
-                      European Vacation
-                    </h3>
-                    <p className="text-muted" style={{ fontSize: "0.9rem" }}>
-                      Target: $18,000 by Aug 2026
-                    </p>
-                    <p
-                      style={{
-                        fontSize: "0.85rem",
-                        color: getStatusColor(goalStatus),
-                        fontWeight: 600,
-                        marginTop: "4px",
-                      }}
-                    >
-                      Status: {goalStatus}
-                    </p>
-                  </div>
-                  <Target
-                    size={32}
-                    color={getStatusColor(goalStatus)}
-                    opacity={0.8}
-                  />
-                </div>
-                <div className="progress-bar-container">
-                  <div
-                    className="progress-bar-fill"
-                    style={{ width: `${progress}%` }}
-                    role="progressbar"
-                    aria-valuenow={Math.round(progress)}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-label="Savings goal progress"
-                  ></div>
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    fontSize: "0.85rem",
-                    color: "var(--text-muted)",
-                    fontWeight: 500,
-                  }}
-                >
-                  <span>68% Completed</span>
-                  <span>$5,550 Remaining</span>
-                </div>
-              </div>
+              <GoalTracker
+                goalName="European Vacation"
+                targetAmount={goalData.targetAmount}
+                targetDate={goalData.targetDate}
+                status={goalStatus}
+                progressPercentage={progress}
+                remainingAmount={goalData.targetAmount - goalData.currentBalance}
+              />
             )}
 
             <div className="allocation-list">
@@ -347,97 +288,11 @@ export default function Home() {
       </main>
           {/* Right Panel - Chat Agent */}
           <div className="glass-panel">
-            <div className="chat-container">
-              <div className="chat-header">
-                <div className="agent-avatar" aria-hidden="true">
-                  <Bot size={28} />
-                </div>
-                <div>
-                  <h2 style={{ margin: 0, fontSize: "1.25rem" }}>
-                    OpenClaw Agent
-                  </h2>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      fontSize: "0.85rem",
-                      color: "var(--success)",
-                    }}
-                  >
-                    <CheckCircle2
-                      size={12}
-                      fill="var(--success)"
-                      color="var(--bg-card)"
-                      aria-hidden="true"
-                    />{" "}
-                    Online
-                  </div>
-                </div>
-              </div>
-
-              <div
-                className="chat-messages"
-                role="log"
-                aria-label="Chat messages"
-                aria-live="polite"
-                aria-relevant="additions"
-              >
-                {messages.map((msg) => (
-                  <div key={msg.id} className={`message ${msg.sender}`}>
-                    {msg.proactive && (
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "6px",
-                          fontSize: "0.75rem",
-                          color: "var(--accent-primary)",
-                          marginBottom: "4px",
-                          fontWeight: 600,
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        <AlertCircle size={12} aria-hidden="true" /> Proactive Nudge
-                      </div>
-                    )}
-                    <div className="message-bubble">{msg.text}</div>
-                  </div>
-                ))}
-                {isTyping && (
-                  <div className="message agent" role="status">
-                    <span className="sr-only">Agent is typing…</span>
-                    <div className="typing-indicator" aria-hidden="true">
-                      <span></span>
-                      <span></span>
-                      <span></span>
-                    </div>
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-
-              <form
-                onSubmit={handleSendMessage}
-                className="chat-input-container"
-              >
-                <input
-                  id="chat-input"
-                  type="text"
-                  placeholder="Ask Smasage to adjust goals..."
-                  value={inputState}
-                  onChange={(e) => setInputState(e.target.value)}
-                  aria-label="Message input"
-                />
-                <button
-                  type="submit"
-                  className="send-button"
-                  aria-label="Send message"
-                >
-                  <Send size={18} aria-hidden="true" />
-                </button>
-              </form>
-            </div>
+            <ChatInterface
+              messages={messages}
+              isTyping={isTyping}
+              onSendMessage={handleSendMessage}
+            />
           </div>
         </main>
       </>
