@@ -1,5 +1,5 @@
 import React from 'react';
-import { Loader2 } from 'lucide-react';
+import { Button } from './Button';
 
 export interface ConnectWalletButtonProps {
   onClick: () => void;
@@ -12,10 +12,10 @@ function truncatePublicKey(key: string) {
   return key.slice(0, 4) + '...' + key.slice(-4);
 }
 
-export const ConnectWalletButton: React.FC<ConnectWalletButtonProps> = ({ 
-  onClick, 
-  publicKey, 
-  isConnecting = false 
+export const ConnectWalletButton: React.FC<ConnectWalletButtonProps> = ({
+  onClick,
+  publicKey,
+  isConnecting = false
 }) => {
   const ariaLabel = isConnecting
     ? 'Connecting wallet, please wait'
@@ -24,22 +24,16 @@ export const ConnectWalletButton: React.FC<ConnectWalletButtonProps> = ({
     : 'Connect Stellar wallet';
 
   return (
-    <button 
-      onClick={onClick} 
-      className={`connect-wallet-btn ${isConnecting ? 'connecting' : ''}`}
-      disabled={isConnecting}
+    <Button
+      onClick={onClick}
+      className="connect-wallet-btn"
+      variant="primary"
+      isLoading={isConnecting}
       aria-label={ariaLabel}
-      aria-busy={isConnecting}
+      loadingLabel="Connecting wallet"
     >
-      {isConnecting ? (
-        <>
-          <Loader2 className="spinner" size={16} aria-hidden="true" />
-          <span>Connecting...</span>
-        </>
-      ) : (
-        publicKey ? truncatePublicKey(publicKey) : 'Connect Wallet'
-      )}
-    </button>
+      {publicKey ? truncatePublicKey(publicKey) : 'Connect Wallet'}
+    </Button>
   );
 };
 
